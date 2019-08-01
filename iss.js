@@ -23,12 +23,11 @@ const fetchMyIP = callback => {
   });
 };
 
-
 const fetchCoordsByIp = (ip, callback) => {
   request(`https://ipvigilante.com/${ip}`, (error, response, data) => {
     if (error) return callback(error, null);
     if (response.statusCode !== 200) {
-      const msg = `Status code: ${response.statusCode} when fetching IP. Reponse: ${data}`;
+      const msg = `Status code: ${response.statusCode} when fetching coordinates. Reponse: ${data}`;
       callback(Error(msg), null);
       return;
     }
@@ -38,4 +37,55 @@ const fetchCoordsByIp = (ip, callback) => {
   });
 };
 
-module.exports = { fetchMyIP, fetchCoordsByIp };
+const fetchISSFlyOverTimes = (coords, callback) => {
+  const url = `http://api.open-notify.org/iss-pass.json?lat=${coords.latitude}&lon=${coords.longitude}`
+
+  request(url, (error, response, data) => {
+    if (error) return callback(error, null);
+
+    if (response.statusCode !== 200) {
+      const msg = `Status code: ${response.statusCode} when fetching ISS data. Response ${data}`;
+      callback(Error(msg), null);
+      return;
+    }
+
+    const passes = JSON.parse(data).response;
+    callback(null, passes);
+  });
+};
+
+/**
+ * Orchestrates multiple API requests in order to determine the next 5 upcoming ISS fly overs for the user's current location.
+ * Input:
+ *   - A callback with an error or results. 
+ * Returns (via Callback):
+ *   - An error, if any (nullable)
+ *   - The fly-over times as an array (null if error):
+ *     [ { risetime: <number>, duration: <number> }, ... ]
+ */
+const nextISSTimesForMyLocation = callback => {
+  fetchMyIP((error, ip) => {
+    if (error) {
+      return callback(error, null);
+    }
+
+    fetchCoordsByIp(ip, (error, coords) => {
+      if (error) {
+        return callback(error, null);
+      }
+
+      fetchISSFlyOverTimes(coords, (error, passes) => {
+        if (error) {
+          return callback(error, null);
+        } 
+        
+        callback(null, passes);
+      });
+
+    });
+
+  });
+
+};
+
+module.exports = { nextISSTimesForMyLocation };
